@@ -1,0 +1,134 @@
+#!/bin/bash
+#Tiana Koundakjian 260949364
+chmod 755 covidata.sh
+
+#question4
+#error message function with purpose to standardize eroor msg for the scripts
+function errorMsg
+{
+    echo "Error: $1"
+    echo "Script syntax: ./covidata.sh -r procedure id range inputFile outputFile compareFile "
+    echo "Legal usage examples:
+    ./covidata.sh get 35 data.csv result.csv
+    ./covidata.sh -r get 35 2020-01 2020-03 data.csv result.csv
+    ./covidata.sh compare 10 data.csv result2.csv result.csv
+    ./covidata.sh -r compare 10 2020-01 2020-03 data.csv result2.csv result.csv"
+    
+}
+
+function makeCopyAWK
+{
+awk -F"," 'BEGIN {FS=",";rowcount=0; sumavgconf=0; sumavgdeaths=0; sumavgtests=0}
+{rowcount+=1;sumavgconf+=$6;sumavgdeaths+=$8;sumavgtests+=$11}
+END{OFS=",";print "rowcount,avgconf,avgdeaths,avgtests";print rowcount,sumavgconf,sumavgdeaths,sumavgtests }' < temp.csv >> $outputFile
+}
+
+if [[ $1 == "get" ]]; then
+        #check num args
+        if [ $# -ne 4 ]; then
+                errorMsg "Wrong number of arguments"
+        else
+                if [ -f $3 ]; then
+			outputFile=$4
+                        grep "^$2" $3 > $4
+			grep "^$2" $3 > temp.csv
+                        makeCopyAWK
+                else
+                        errorMsg "Input file name does not exist"
+                fi;
+        fi;
+elif  [[ $1 == "compare" ]]; then
+        #check num of args
+        if [ $# -ne 5 ]; then
+                errorMsg "Wrong number of arguments"
+        else
+                if [ ! -f $3 ]; then
+                        errorMsg "Input file name does not exist"
+                else
+                        grep "^$2" $3 > $4
+                        #appends the sats of $5 in $4\
+			outputFile=$4
+			inputFile=$3
+                        
+			echo "stats of input"
+		       	head -n -2 $5 >> $4
+                        
+			echo "stats of comp"
+		       	makeCopyAWK
+			awk -F ","'
+			BEGIN { FS=","; rowcount=0; sumavgconf=0; sumavgdeath=0; sumavgtests=0}
+			{rowcount +=1; sumavgconf+=$6; sumavgdeaths+=$8; sumavgtests+=11}
+		       	END {OFS",";print"rowcount,avgconf,avgdeaths,avgtests"; print rowcount,sumavgdeaths,sumavgtests}' < $3 >> stats.csv
+                       
+                        tail -n 2 $5 >> $4
+                        #create temp file to calculate stats
+                        tail -n 2 $5 >> stats.csv
+                        awk '
+                        BEGIN {FS=",";rownum=0;diffcount=0;diffavgconf=0;diffavgdeath=0;diffavgtests=0}
+                        {
+                                rownum +=1;
+				if (rownum==2) {diffcount=$1;diffavgconf=$2;diffavgdeath=$3;diffavgtests=$4}
+				if (rownum==4) {diffcount-=$1;diffavgconf-=$2;diffavgdeath-=$3;diffavgtests-=$4}
+                        }
+			END {OFS=",";print "diffcount,diffavgconf,diffavgdeath,diffavgtests";print diffcount,diffavgconf,diffavgdeath,diffavgtests}' < stats.csv >> $4
+                        #need to remove the tempfile so that we can recreate it after . cl
+                        rm -f stats.csv
+                fi;
+        fi;
+elif [[ $1 == -r ]]; then
+        echo "hi its the last parts you got this"
+        if [ $2 = "get" ]; then
+                if [ $# -ne 7]; then
+			errorMsg "Wrong number of arguments"
+		else
+			if [ f $3 ]; then
+				x= $4
+				year= ${x:0:4}
+				month= ${x:5:2}
+				day="01"
+				a= $year
+				b= $month
+				c= $day
+				startDay= "01"
+				endDay= "15"
+				while [ $b -le $c ]; do
+					startDate=$a-$b-$startDay
+					endDate=$a-$b-$endDay	
+					awk -v id=$2 -v startDate=$startDate -v endDate=$endDate 
+					'BEGIN {FS=",";rowcount=0; sumavgconf=0;sumavgdeaths=0;sumavgtests=0}
+					if ($0 ~ $id && $5 > $startDate && $5 < $endDate)
+						{rowcount+=1;sumavgconf+=$6;sumavgdeaths+=$8;sumavgtests+=$11}
+					END {OFS=",";print"rowcount,avgconf,avgdeaths,avgtests";print rowcount,sumavgconf,sumavgdeaths,sumavgtests}'< $6 >>$7
+					theNewStartDate=$a-$b-$startDay
+					theNewEndDate=$a-$b-$endDay
+					if [ $startDay -eq "01" ]; then
+						startDay="16"
+						endDa="31"
+					elif [ startDay -eq "16" ]; then
+						startDay="01"
+						endDay="15"
+						
+						b= $(expr $b + 1)
+						if [ ${#b} -eq 1]; then
+							b=0$b
+						fi;
+					fi;
+				done
+				
+					
+			else 
+				errorMsg "Input file name does not exist"
+			fi;	
+		fi;
+	elif [[ $2 == "compare" ]]; then
+                if [ $# -ne 8 ]; then 
+			errorMsg "Wrong number of arguments"
+		else
+		       echo "HI"	
+		fi;
+        else
+                echo "Procedure not provided"
+        fi;
+else
+      echo "Procedure not provided."
+fi;
